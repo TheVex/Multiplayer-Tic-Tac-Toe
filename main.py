@@ -1,6 +1,6 @@
 import pygame
 from enum import Enum
-
+from pprint import pprint
 
 WIDTH = 800
 HEIGHT = 600
@@ -13,26 +13,38 @@ BACKGROUND_COLOR = 'lightgray'
 BOARD_COLOR = 'black'
 CROSS_COLOR = 'red'
 CIRCLE_COLOR = 'blue'
-WIN_LINE_COLOR = 'black'
+WIN_LINE_COLOR = 'green'
+
+FONT = None
+FONT_SIZE = 64
+TEXT_OFFSET = 30
 
 class Mark(Enum):
+    NOT_FINISHED = 4
     CROSS = 1
     CIRCLE = 2
+    DRAW = 3
     
     
 class WinLine(Enum):
+    NOT_FINISHED = 6
     HORIZONTAL = 1
     VERTICAL = 2
     LEFT_DIAGONAL = 3
     RIGHT_DIAGONAL = 4
-    
+    DRAW = 5
+
     
 class Board:
     def __init__(self, screen):
         self.board = [[None for _ in range(3)] for i in range(3)]
         self.start_pos = (WIDTH // 2 - int(CELL_SIZE * 1.5),
                           HEIGHT // 2 - int(CELL_SIZE * 1.5))
-        self.screen = screen  
+        self.screen = screen
+        self.winline = WinLine.NOT_FINISHED
+        self.line = -1
+        self.winner = Mark.NOT_FINISHED
+          
     
     def draw_cross(self, x, y) -> None:
         pygame.draw.line(self.screen, CROSS_COLOR,
@@ -54,7 +66,41 @@ class Board:
                                (self.start_pos[0] + int((x + 0.5) * CELL_SIZE),
                                 self.start_pos[1] + int((y + 0.5) * CELL_SIZE)),
                                CELL_SIZE // 2 - CELL_OFFSET, LINE_WIDTH)
-                    
+            
+    def draw_winline(self):
+        if self.winline == WinLine.HORIZONTAL:
+            pygame.draw.line(self.screen, WIN_LINE_COLOR,
+                            (self.start_pos[0], self.start_pos[1] + int((self.line + 0.5) * CELL_SIZE)),
+                            (self.start_pos[0] + 3 * CELL_SIZE, self.start_pos[1] + int((self.line + 0.5) * CELL_SIZE)),
+                            WIN_LINE_WIDTH)
+        elif self.winline == WinLine.VERTICAL:
+            pygame.draw.line(self.screen, WIN_LINE_COLOR,
+                            (self.start_pos[0] + int((self.line + 0.5) * CELL_SIZE), self.start_pos[1]),
+                            (self.start_pos[0] + int((self.line + 0.5) * CELL_SIZE), self.start_pos[1] + 3 * CELL_SIZE),
+                            WIN_LINE_WIDTH)
+        elif self.winline == WinLine.LEFT_DIAGONAL:
+            pygame.draw.line(self.screen, WIN_LINE_COLOR, self.start_pos,
+                            (self.start_pos[0] + 3 * CELL_SIZE, self.start_pos[1] + 3 * CELL_SIZE),
+                            WIN_LINE_WIDTH)
+        elif self.winline == WinLine.RIGHT_DIAGONAL:
+            pygame.draw.line(self.screen, WIN_LINE_COLOR, 
+                            (self.start_pos[0] + 3 * CELL_SIZE, self.start_pos[1]),
+                            (self.start_pos[0], self.start_pos[1] + 3 * CELL_SIZE),
+                            WIN_LINE_WIDTH)
+            
+    def set_winner(self):
+        self.draw_winline()
+        text = None
+        if self.winner == Mark.CROSS:
+            text = FONT.render("Cross wins!", 0, 'black')
+        elif self.winner == Mark.CIRCLE:
+            text = FONT.render("Circle wins!", 0, 'black')
+        elif self.winner == Mark.DRAW:
+            text = FONT.render("Draw!", 0, 'black')
+
+        text_rect = text.get_rect(center=(WIDTH/2, self.start_pos[1] + 3 * CELL_SIZE + TEXT_OFFSET))
+        self.screen.blit(text, text_rect)
+        
     def render(self) -> None:
         for i in range(1, 3):
             pygame.draw.line(self.screen, BOARD_COLOR, 
@@ -72,6 +118,10 @@ class Board:
                     self.draw_cross(y, x)
                 elif self.board[x][y] == Mark.CIRCLE:
                     self.draw_circle(y, x)
+                    
+        if self.winline != WinLine.NOT_FINISHED:
+            self.set_winner()
+            
  
     def set_mark(self, mark) -> bool:
         x_mouse, y_mouse = pygame.mouse.get_pos()
@@ -84,42 +134,38 @@ class Board:
                     return True
         return False
     
-    def set_winner(self, indicator, mark, line_type):
-        if line_type == WinLine.HORIZONTAL:
-            pygame.draw.line(self.screen, WIN_LINE_COLOR,
-                            (self.start_pos[0], self.start_pos[1] + int((indicator + 0.5) * CELL_SIZE)),
-                            (self.start_pos[0] + 3 * CELL_SIZE, self.start_pos[1] + int((indicator + 0.5) * CELL_SIZE)),
-                            WIN_LINE_WIDTH)
-        elif line_type == WinLine.VERTICAL:
-            pygame.draw.line(self.screen, WIN_LINE_COLOR,
-                            (self.start_pos[0] + int((indicator + 0.5) * CELL_SIZE), self.start_pos[1]),
-                            (self.start_pos[0] + int((indicator + 0.5) * CELL_SIZE), self.start_pos[1] + 3 * CELL_SIZE),
-                            WIN_LINE_WIDTH)
-        elif line_type == WinLine.LEFT_DIAGONAL:
-            pygame.draw.line(self.screen, WIN_LINE_COLOR, self.start_pos,
-                            (self.start_pos[0] + 3 * CELL_SIZE, self.start_pos[1] + 3 * CELL_SIZE),
-                            WIN_LINE_WIDTH)
-        elif line_type == WinLine.RIGHT_DIAGONAL:
-            pygame.draw.line(self.screen, WIN_LINE_COLOR, 
-                            (self.start_pos[0] + 3 * CELL_SIZE, self.start_pos[1]),
-                            (self.start_pos[0], self.start_pos[1] + 3 * CELL_SIZE),
-                            WIN_LINE_WIDTH)
-        return True
+    
+        
 
         
         
+    # Hardcoded conditions check
+    def check_game_end(self):
+        pprint(self.board)
         
-    def check_winner(self):
         for i in range(3):
-            if self.board[i][0] == None: continue
-            elif self.board[i][0] == self.board[i][1] == self.board[i][2]:
-                return self.set_winner(i, self.board[i][0], WinLine.HORIZONTAL)
-            elif self.board[0][i] == self.board[1][i] == self.board[2][i]:
-                return self.set_winner(i, self.board[0][i], WinLine.VERTICAL)
+            if self.board[i][0] != None and self.board[i][0] == self.board[i][1] == self.board[i][2]:
+                self.line, self.winner, self.winline = i, self.board[i][0], WinLine.HORIZONTAL
+                return True
+            elif self.board[0][i] != None and self.board[0][i] == self.board[1][i] == self.board[2][i]:
+                self.line, self.winner, self.winline = i, self.board[0][i], WinLine.VERTICAL
+                return True
+            
         if self.board[0][0] is not None and self.board[0][0] == self.board[1][1] == self.board[2][2]:
-            return self.set_winner(0, self.board[0][0], WinLine.LEFT_DIAGONAL)
+            self.line, self.winner, self.winline = 0, self.board[0][0], WinLine.LEFT_DIAGONAL
+            return True
         if self.board[0][2] is not None and self.board[0][2] == self.board[1][1] == self.board[2][0]:
-            return self.set_winner(0, self.board[0][2], WinLine.RIGHT_DIAGONAL)
+            self.line, self.winner, self.winline = 0, self.board[0][2], WinLine.RIGHT_DIAGONAL
+            return True
+        
+        draw = True
+        for row in self.board:
+            for cell in row:
+                if cell == None:
+                    draw = False
+        if draw:
+            self.line, self.winner, self.winline = 0, Mark.DRAW, WinLine.DRAW
+            return True
         return False
                 
 def initialize_screen(screen):
@@ -133,33 +179,35 @@ def initialize_screen(screen):
     
 
 def main():
+    global FONT
     # Create game window
     pygame.init()
     pygame.display.set_caption("Tic-Tac-Toe")
     size = (WIDTH, HEIGHT)
     screen = pygame.display.set_mode(size)
     
+    FONT = pygame.font.Font(None, FONT_SIZE)
     '''
     "board" is a game board
     "turn" Defines which player turn is
-    "win" checks if game is finished
+    "end" checks if game is finished
     "mark_success" checks if mark placed on board correctly
     "restart" checks if players want to restart the game
     '''
-    board, turn, win, mark_success, restart = initialize_screen(screen)
+    board, turn, end, mark_success, restart = initialize_screen(screen)
     
     # If game continues
     running = True
     while running:
         if restart:
-            board, turn, win, mark_success, restart = initialize_screen(screen)
+            board, turn, end, mark_success, restart = initialize_screen(screen)
             
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            if event.type == pygame.MOUSEBUTTONDOWN:
+            if not end and event.type == pygame.MOUSEBUTTONDOWN:
                 mark_success = board.set_mark(turn)
-            if event.type == pygame.K_r and win:
+            if end and event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 restart = True
         '''
         if win:
@@ -167,17 +215,18 @@ def main():
             pass
         else:
         '''
-        if win:
+        if end:
+            print("END")
             pass
         else:
-            board.render()
             if mark_success:
                 if turn == Mark.CIRCLE:
                     turn = Mark.CROSS
                 else:
                     turn = Mark.CIRCLE
                 mark_success = False
-                win = board.check_winner()
+                end = board.check_game_end()
+        board.render()
         pygame.display.flip()
     
     pygame.quit()
