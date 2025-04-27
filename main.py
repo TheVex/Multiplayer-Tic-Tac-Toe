@@ -5,6 +5,7 @@ from pprint import pprint
 
 import pygame_menu.themes
 
+# Board position customization
 WIDTH = 800
 HEIGHT = 600
 CELL_SIZE = 150
@@ -12,6 +13,7 @@ CELL_OFFSET = 20
 LINE_WIDTH = 10
 WIN_LINE_WIDTH = 15
 
+# Color customization
 BACKGROUND_COLOR = 'lightgray'
 BOARD_COLOR = 'black'
 CROSS_COLOR = 'red'
@@ -27,7 +29,8 @@ pygame.init()
 pygame.display.set_caption("Tic-Tac-Toe")   
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
-# 
+
+# Specifies type of mark (and who won the game)
 class Mark(Enum):
     NOT_FINISHED = 4
     CROSS = 1
@@ -252,7 +255,7 @@ def lobby():
 # Thank you DeepSeek for lobby generation!
 def lobby(page=0):
     # Имитация данных (в реальном приложении получаем с сервера)
-    TOTAL_SESSIONS = 3
+    TOTAL_SESSIONS = 12
     SESSIONS_PER_PAGE = 10
     
     current_page = page
