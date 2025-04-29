@@ -236,12 +236,43 @@ def start_game():
     
     pygame.quit()
 
+# Waiting screen 
+def show_waiting_screen():
+    """Shows a waiting screen with 'Waiting for player' message"""
+    waiting = True
+    clock = pygame.time.Clock()
+    font = pygame.font.Font(None, 36)
+    
+    # Check if player was found
+    player_found = False
+    
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    waiting = False
+        
+        # Edit start_game() function to make it work with two players
+        if player_found:
+            start_game()
+            
+        screen.fill(BACKGROUND_COLOR)
+        text = font.render("Waiting for player...", True, (0, 0, 0))
+        text_rect = text.get_rect(center=(WIDTH/2, HEIGHT/2))
+        screen.blit(text, text_rect)
+        
+        pygame.display.flip()
+        clock.tick(30)
+        
 
 # Thank you DeepSeek for lobby generation!
 def lobby(page=0):
     # Имитация данных (в реальном приложении получаем с сервера)
-    TOTAL_SESSIONS = 12
-    SESSIONS_PER_PAGE = 10
+    TOTAL_SESSIONS = 3
+    SESSIONS_PER_PAGE = 8
     
     current_page = page
     total_pages = (TOTAL_SESSIONS + SESSIONS_PER_PAGE - 1) // SESSIONS_PER_PAGE
@@ -260,7 +291,7 @@ def lobby(page=0):
     # Контейнер для динамического контента
     content_frame = lobby_menu.add.frame_v(
         width=WIDTH*0.8,
-        height=HEIGHT*0.7,
+        height=HEIGHT*0.5,
         background_color=SERVER_LIST_COLOR
     )
 
@@ -310,6 +341,7 @@ def lobby(page=0):
     )
     
     # Кнопка обновления (теперь просто пересоздает текущую страницу)
+    lobby_menu.add.button("Create Game", show_waiting_screen, font_size=20)
     lobby_menu.add.button("Refresh", lambda: lobby(current_page), font_size=20)
     lobby_menu.add.button("Back", pygame_menu.events.BACK, font_size=20)
     
