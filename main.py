@@ -12,6 +12,9 @@ CELL_SIZE = 150
 CELL_OFFSET = 20
 LINE_WIDTH = 10
 WIN_LINE_WIDTH = 15
+# Position from which board starts drawing
+START_POS =  (WIDTH // 2 - int(CELL_SIZE * 1.5), HEIGHT // 2 - int(CELL_SIZE * 1.5))
+
 
 # Color customization
 BACKGROUND_COLOR = 'lightgray'
@@ -46,96 +49,100 @@ class WinLine(Enum):
     RIGHT_DIAGONAL = 4
     DRAW = 5
 
-    
-class Board:
+
+class Renderer:
     def __init__(self, screen):
-        self.board = [[None for _ in range(3)] for i in range(3)]
-        self.start_pos = (WIDTH // 2 - int(CELL_SIZE * 1.5),
-                          HEIGHT // 2 - int(CELL_SIZE * 1.5))
+        # Fill the screen with background color
+        pygame.draw.rect(screen, BACKGROUND_COLOR, (0, 0, WIDTH, HEIGHT))
         self.screen = screen
-        self.winline = WinLine.NOT_FINISHED
-        self.line = -1
-        self.winner = Mark.NOT_FINISHED
-    
+        
     # Draws cross on the screen
     def draw_cross(self, x, y) -> None:
         pygame.draw.line(self.screen, CROSS_COLOR,
-                            (self.start_pos[0] + x * CELL_SIZE + CELL_OFFSET,
-                             self.start_pos[1] + y * CELL_SIZE + CELL_OFFSET),
-                            (self.start_pos[0] + (x + 1) * CELL_SIZE - CELL_OFFSET,
-                             self.start_pos[1] + (y + 1) * CELL_SIZE - CELL_OFFSET),
+                            (START_POS[0] + x * CELL_SIZE + CELL_OFFSET,
+                             START_POS[1] + y * CELL_SIZE + CELL_OFFSET),
+                            (START_POS[0] + (x + 1) * CELL_SIZE - CELL_OFFSET,
+                             START_POS[1] + (y + 1) * CELL_SIZE - CELL_OFFSET),
                             LINE_WIDTH)
         pygame.draw.line(self.screen, CROSS_COLOR,
-                            (self.start_pos[0] + (x + 1) * CELL_SIZE - CELL_OFFSET,
-                             self.start_pos[1] + y * CELL_SIZE + CELL_OFFSET),
-                            (self.start_pos[0] + x * CELL_SIZE + CELL_OFFSET,
-                             self.start_pos[1] + (y + 1) * CELL_SIZE - CELL_OFFSET),
+                            (START_POS[0] + (x + 1) * CELL_SIZE - CELL_OFFSET,
+                             START_POS[1] + y * CELL_SIZE + CELL_OFFSET),
+                            (START_POS[0] + x * CELL_SIZE + CELL_OFFSET,
+                             START_POS[1] + (y + 1) * CELL_SIZE - CELL_OFFSET),
                             LINE_WIDTH)
     
     # Draws circle on the screen
     def draw_circle(self, x, y):
             pygame.draw.circle(self.screen, CIRCLE_COLOR,
-                               (self.start_pos[0] + int((x + 0.5) * CELL_SIZE),
-                                self.start_pos[1] + int((y + 0.5) * CELL_SIZE)),
+                               (START_POS[0] + int((x + 0.5) * CELL_SIZE),
+                                START_POS[1] + int((y + 0.5) * CELL_SIZE)),
                                CELL_SIZE // 2 - CELL_OFFSET, LINE_WIDTH)
     
-    # Draw line showing the winner, handled by set_winner() function
-    def draw_winline(self):
-        if self.winline == WinLine.HORIZONTAL:
+    # Draw line showing the winner, handled by draw_winner() function
+    def draw_winline(self, game):
+        if game.winline == WinLine.HORIZONTAL:
             pygame.draw.line(self.screen, WIN_LINE_COLOR,
-                            (self.start_pos[0], self.start_pos[1] + int((self.line + 0.5) * CELL_SIZE)),
-                            (self.start_pos[0] + 3 * CELL_SIZE, self.start_pos[1] + int((self.line + 0.5) * CELL_SIZE)),
+                            (START_POS[0], START_POS[1] + int((game.line + 0.5) * CELL_SIZE)),
+                            (START_POS[0] + 3 * CELL_SIZE, START_POS[1] + int((game.line + 0.5) * CELL_SIZE)),
                             WIN_LINE_WIDTH)
-        elif self.winline == WinLine.VERTICAL:
+        elif game.winline == WinLine.VERTICAL:
             pygame.draw.line(self.screen, WIN_LINE_COLOR,
-                            (self.start_pos[0] + int((self.line + 0.5) * CELL_SIZE), self.start_pos[1]),
-                            (self.start_pos[0] + int((self.line + 0.5) * CELL_SIZE), self.start_pos[1] + 3 * CELL_SIZE),
+                            (START_POS[0] + int((game.line + 0.5) * CELL_SIZE), START_POS[1]),
+                            (START_POS[0] + int((game.line + 0.5) * CELL_SIZE), START_POS[1] + 3 * CELL_SIZE),
                             WIN_LINE_WIDTH)
-        elif self.winline == WinLine.LEFT_DIAGONAL:
-            pygame.draw.line(self.screen, WIN_LINE_COLOR, self.start_pos,
-                            (self.start_pos[0] + 3 * CELL_SIZE, self.start_pos[1] + 3 * CELL_SIZE),
+        elif game.winline == WinLine.LEFT_DIAGONAL:
+            pygame.draw.line(self.screen, WIN_LINE_COLOR, START_POS,
+                            (START_POS[0] + 3 * CELL_SIZE, START_POS[1] + 3 * CELL_SIZE),
                             WIN_LINE_WIDTH)
-        elif self.winline == WinLine.RIGHT_DIAGONAL:
+        elif game.winline == WinLine.RIGHT_DIAGONAL:
             pygame.draw.line(self.screen, WIN_LINE_COLOR, 
-                            (self.start_pos[0] + 3 * CELL_SIZE, self.start_pos[1]),
-                            (self.start_pos[0], self.start_pos[1] + 3 * CELL_SIZE),
+                            (START_POS[0] + 3 * CELL_SIZE, START_POS[1]),
+                            (START_POS[0], START_POS[1] + 3 * CELL_SIZE),
                             WIN_LINE_WIDTH)
     
     # Write game result, handled by render() function
-    def set_winner(self):
-        self.draw_winline()
+    def draw_winner(self, game):
+        self.draw_winline(game)
         text = None
-        if self.winner == Mark.CROSS:
+        if game.winner == Mark.CROSS:
             text = FONT.render("Cross wins!", 0, 'black')
-        elif self.winner == Mark.CIRCLE:
+        elif game.winner == Mark.CIRCLE:
             text = FONT.render("Circle wins!", 0, 'black')
-        elif self.winner == Mark.DRAW:
+        elif game.winner == Mark.DRAW:
             text = FONT.render("Draw!", 0, 'black')
 
-        text_rect = text.get_rect(center=(WIDTH/2, self.start_pos[1] + 3 * CELL_SIZE + TEXT_OFFSET))
+        text_rect = text.get_rect(center=(WIDTH/2, START_POS[1] + 3 * CELL_SIZE + TEXT_OFFSET))
         self.screen.blit(text, text_rect)
     
     # Draws the board
-    def render(self) -> None:
+    def render(self, game) -> None:
         for i in range(1, 3):
             pygame.draw.line(self.screen, BOARD_COLOR, 
-                           (self.start_pos[0] + i * CELL_SIZE, self.start_pos[1]),
-                           (self.start_pos[0] + i * CELL_SIZE, self.start_pos[1] + 3 * CELL_SIZE),
+                           (START_POS[0] + i * CELL_SIZE, START_POS[1]),
+                           (START_POS[0] + i * CELL_SIZE, START_POS[1] + 3 * CELL_SIZE),
                            LINE_WIDTH)
             pygame.draw.line(self.screen, BOARD_COLOR, 
-                           (self.start_pos[0], self.start_pos[1] + i * CELL_SIZE),
-                           (self.start_pos[0] + 3 * CELL_SIZE, self.start_pos[1] + i * CELL_SIZE),
+                           (START_POS[0], START_POS[1] + i * CELL_SIZE),
+                           (START_POS[0] + 3 * CELL_SIZE, START_POS[1] + i * CELL_SIZE),
                            LINE_WIDTH)
 
         for x in range(3):
             for y in range(3):
-                if self.board[x][y] == Mark.CROSS:
+                if game.board[x][y] == Mark.CROSS:
                     self.draw_cross(y, x)
-                elif self.board[x][y] == Mark.CIRCLE:
+                elif game.board[x][y] == Mark.CIRCLE:
                     self.draw_circle(y, x)
                     
-        if self.winline != WinLine.NOT_FINISHED:
-            self.set_winner()
+        if game.winline != WinLine.NOT_FINISHED:
+            self.draw_winner(game)
+
+    
+class Game:
+    def __init__(self):
+        self.board = [[None for _ in range(3)] for i in range(3)]
+        self.winline = WinLine.NOT_FINISHED
+        self.line = -1
+        self.winner = Mark.NOT_FINISHED
             
     # Checks that mouse cursor is in board and places mark
     def set_mark(self, mark) -> bool:
@@ -143,8 +150,8 @@ class Board:
         for x in range(3):
             for y in range(3):
                 if (self.board[x][y] is None and
-                    self.start_pos[0] + y * CELL_SIZE < x_mouse < self.start_pos[0] + (y + 1) * CELL_SIZE and
-                    self.start_pos[1] + x * CELL_SIZE < y_mouse < self.start_pos[1] + (x + 1) * CELL_SIZE):
+                    START_POS[0] + y * CELL_SIZE < x_mouse < START_POS[0] + (y + 1) * CELL_SIZE and
+                    START_POS[1] + x * CELL_SIZE < y_mouse < START_POS[1] + (x + 1) * CELL_SIZE):
                     self.board[x][y] = mark
                     return True
         return False
@@ -174,42 +181,43 @@ class Board:
         self.winner = winner
         self.winline = winline
         return True
+     
                 
 def initialize_screen(screen):
-    # Fill the screen with background color
-    pygame.draw.rect(screen, 'lightgray', (0, 0, WIDTH, HEIGHT))
+    renderer = Renderer(screen)
+    # Create game
+    game = Game()
+    renderer.render(game)
+    return renderer, game, Mark.CROSS, False, False, False
     
-    # Create board on a screen
-    board = Board(screen)
-    board.render()
-    return board, Mark.CROSS, False, False, False
     
 # I think should be partially moved to the server
-def game():
+def start_game():
     global FONT, screen
     # Create game window
     
     FONT = pygame.font.Font(None, FONT_SIZE)
     '''
-    "board" is a game board
+    "renderer" draws game on the screen
+    "game" is a class instance with all logic
     "turn" Defines which player turn is
     "end" checks if game is finished
     "mark_success" checks if mark placed on board correctly
     "restart" checks if players want to restart the game
     '''
-    board, turn, end, mark_success, restart = initialize_screen(screen)
+    renderer, game, turn, end, mark_success, restart = initialize_screen(screen)
     
     # If game continues
     running = True
     while running:
         if restart:
-            board, turn, end, mark_success, restart = initialize_screen(screen)
+            renderer, game, turn, end, mark_success, restart = initialize_screen(screen)
             
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             if not end and event.type == pygame.MOUSEBUTTONDOWN:
-                mark_success = board.set_mark(turn)
+                mark_success = game.set_mark(turn)
             if end and event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 restart = True
                 
@@ -222,35 +230,12 @@ def game():
                 else:
                     turn = Mark.CIRCLE
                 mark_success = False
-                end = board.check_game_end()
-        board.render()
+                end = game.check_game_end()
+        renderer.render(game)
         pygame.display.flip()
     
     pygame.quit()
 
-
-
-
-"""
-def lobby():
-    lobbyUI = pygame_menu.Menu("Lobby", WIDTH, HEIGHT, theme=pygame_menu.themes.THEME_SOLARIZED)
-    
-    session_buttons = [lobbyUI.add.button(f"Game {i+1}", game) for i in range(5)]
-    # This information should be received from server
-    
-    active_sessions = 3
-    sessions = [game for i in range(active_sessions)]
-    
-    for i in range(5):
-        if i >= active_sessions:
-            session_buttons[i].hide()
-        else:
-            session_buttons[i] = lobbyUI.add.button(f"Game {i+1}", sessions[i])
-    
-    lobbyUI.add.selector("Page", items=[(str(i+1), str(i+1)) for i in range(active_sessions // 5 + 1)])
-    lobbyUI.add.button(f"Back", menu)
-    lobbyUI.mainloop(screen)
-"""
 
 # Thank you DeepSeek for lobby generation!
 def lobby(page=0):
@@ -288,7 +273,7 @@ def lobby(page=0):
         content_frame.pack(
             lobby_menu.add.button(
                 f"Game {i+1}", 
-                game,
+                start_game,
                 font_size=20
             ),
             align=pygame_menu.locals.ALIGN_CENTER
