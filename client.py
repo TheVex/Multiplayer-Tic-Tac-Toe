@@ -287,6 +287,7 @@ def start_game(game_id=None, is_host=False):
                     elif response["type"] == Response.GAME_FINISHED_SUC.value:
                         game.board = convert_board(response["board"])
                         game.winner = Mark(response["winner"])
+                        game.check_game_end()
                     elif response["type"] == Response.PLAYER_DISCONNECTED.value:
                         print("Opponent disconnected... Waiting it to reconnect")
                     elif response["type"] == Response.GAME_FINISHED_TECH.value:
