@@ -36,5 +36,5 @@ python client.py
 ```
 ## How to start the game
 1. In the first client, click `Play`. Empty lobby will be opened, where `Create game` button should be clicked.
-2. Open lobby in second client. A list of available games should appear in the second client (otherwise click refresh)
+2. Open lobby in second client. A list of available games should appear in the second client (otherwise click `refresh`).
 3. Select `Game 1` in the second client to connect to the game.
