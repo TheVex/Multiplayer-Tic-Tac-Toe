@@ -156,6 +156,8 @@ class Game:
         self.my_mark = None  
         self.current_turn = None 
         self.is_finished = False
+        self.winner = Mark.NOT_FINISHED
+        self.winline = WinLine.NOT_FINISHED
 
     def update_from_server(self, board, current_turn, is_finished):
         self.board = board
@@ -218,10 +220,6 @@ def initialize_screen(screen):
 def start_game(game_id=None, is_host=False):
     global FONT, screen
  
-    FONT = pygame.font.Font(None, FONT_SIZE)
-    renderer = Renderer(screen)
-    game = Game()
- 
     if game_id is not None:
         if is_host:
             response = send_request(Request.CREATE_THE_GAME)
@@ -241,13 +239,11 @@ def start_game(game_id=None, is_host=False):
             else:
                 print("Failed to join game")
                 return
+            
+    FONT = pygame.font.Font(None, FONT_SIZE)
+    renderer = Renderer(screen)
+    game = Game()
 
-        if is_host:
-            start_response = json.loads(client_socket.recv(BUFFER_SIZE).decode('utf-8'))
-            if start_response.get("type") != Response.START_GAME.value:
-                print("Game start failed")
-                return
- 
     running = True
     while running:
         for event in pygame.event.get():
@@ -317,6 +313,12 @@ def show_waiting_screen(game_id):
     clock = pygame.time.Clock()
     font = pygame.font.Font(None, 36)
  
+    screen.fill(BACKGROUND_COLOR)
+    text = font.render("Waiting for opponent...", True, (0, 0, 0))
+    text_rect = text.get_rect(center=(WIDTH/2, HEIGHT/2))
+    screen.blit(text, text_rect)
+    pygame.display.flip()
+
     while waiting:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -330,7 +332,6 @@ def show_waiting_screen(game_id):
             if data:
                 response = json.loads(data.decode('utf-8'))
                 if response["type"] == Response.START_GAME.value:
-                    start_game(game_id, is_host=True)
                     waiting = False
         except BlockingIOError:
             pass
