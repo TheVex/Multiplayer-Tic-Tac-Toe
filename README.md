@@ -23,16 +23,16 @@ pip install -r requirements.txt
 The application consists of a server and clients. To work, you must:
 1. Start the server (in the first terminal):
 ```bash
-python server/server.py
+python server.py
 ```
 2. Wait for the server startup message in the logs.
 3. Launch the first client (in the second terminal):
 ```bash
-python client/client.py
+python client.py
 ```
 4. Launch the second client (in the third terminal):
 ```bash
-python client/client.py
+python client.py
 ```
 ## How to start the game
 1. In the first client, click `Play`. Empty lobby will be opened, where `Create game` button should be clicked.
