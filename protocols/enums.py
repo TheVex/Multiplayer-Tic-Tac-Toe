@@ -22,6 +22,7 @@ class Request(Enum):
     CREATE_THE_GAME = 2
     CONNECT_TO_GAME = 3
     MAKE_THE_MOVE = 4
+    RECONNECT_CLIENT = 5
 
 # Specifies types of responses
 class Response(Enum):

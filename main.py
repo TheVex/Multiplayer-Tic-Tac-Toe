@@ -1,8 +1,10 @@
 import pygame
 import pygame_menu
-from protocols.enums import Mark, WinLine
+from protocols.enums import Mark, WinLine, Response, Request
 from pprint import pprint
 import pygame_menu.themes
+import socket
+import json
 
 # Board position customization
 WIDTH = 800
@@ -26,9 +28,37 @@ FONT = None
 FONT_SIZE = 64
 TEXT_OFFSET = 30
 
+SERVER_ADDRESS = ("localhost", 8080)
+BUFFER_SIZE = 4096
+
 pygame.init()
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client_socket.settimeout(5)
 pygame.display.set_caption("Tic-Tac-Toe")   
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
+
+
+def connect_to_server():
+    try:
+        client_socket.connect(SERVER_ADDRESS)
+        return True
+    except Exception as e:
+        print(f"Failed to connect to server: {e}")
+        return False
+ 
+
+def send_request(request_type, data=None):
+    try:
+        request = {"type": request_type.value}
+        if data:
+            request.update(data)
+        client_socket.send(json.dumps(request).encode('utf-8'))
+        response = json.loads(client_socket.recv(BUFFER_SIZE).decode('utf-8'))
+        return response
+    except Exception as e:
+        print(f"Network error: {e}")
+        return None
+
 
 class Renderer:
     def __init__(self, screen):
@@ -119,21 +149,32 @@ class Renderer:
     
 class Game:
     def __init__(self):
-        self.board = [[None for _ in range(3)] for i in range(3)]
-        self.winline = WinLine.NOT_FINISHED
-        self.line = -1
-        self.winner = Mark.NOT_FINISHED
+        self.board = [[None for _ in range(3)] for _ in range(3)]
+        self.my_mark = None  
+        self.current_turn = None 
+        self.is_finished = False
+
+    def update_from_server(self, board, current_turn, is_finished):
+        self.board = board
+        self.current_turn = current_turn
+        self.is_finished = is_finished
             
     # Checks that mouse cursor is in board and places mark
-    def set_mark(self, mark) -> bool:
+    def set_local_mark(self, mark):
+        if self.is_finished:
+            print("Game already finished.")
+            return False
+        if self.current_turn != self.my_mark:
+            print("Not your turn.")
+            return False
         x_mouse, y_mouse = pygame.mouse.get_pos()
         for x in range(3):
             for y in range(3):
                 if (self.board[x][y] is None and
                     START_POS[0] + y * CELL_SIZE < x_mouse < START_POS[0] + (y + 1) * CELL_SIZE and
                     START_POS[1] + x * CELL_SIZE < y_mouse < START_POS[1] + (x + 1) * CELL_SIZE):
-                    self.board[x][y] = mark
-                    return True
+                    return x, y
+        print("Invalid cell.")
         return False
         
     # Hardcoded conditions check
@@ -171,136 +212,182 @@ def initialize_screen(screen):
     return renderer, game, Mark.CROSS, False, False, False
     
     
-# I think should be partially moved to the server
-def start_game():
+def start_game(game_id=None, is_host=False):
     global FONT, screen
-    # Create game window
-    
+ 
     FONT = pygame.font.Font(None, FONT_SIZE)
-    '''
-    "renderer" draws game on the screen
-    "game" is a class instance with all logic
-    "turn" Defines which player turn is
-    "end" checks if game is finished
-    "mark_success" checks if mark placed on board correctly
-    "restart" checks if players want to restart the game
-    '''
-    renderer, game, turn, end, mark_success, restart = initialize_screen(screen)
-    
-    # If game continues
+    renderer = Renderer(screen)
+    game = Game()
+ 
+    if game_id is not None:
+        if is_host:
+            response = send_request(Request.CREATE_THE_GAME)
+            if response and response.get("type") == Response.CREATE_GAME.value:
+                game_id = response["data"][0]
+                player_id = response["data"][1]
+                player_mark = Mark.CROSS
+            else:
+                print("Failed to create game")
+                return
+        else:
+            response = send_request(Request.CONNECT_TO_GAME, {"game_id": game_id})
+            if response and response.get("type") == Response.CONNECT_TO_GAME.value:
+                player_id = response["data"]
+                player_mark = Mark.CIRCLE
+            else:
+                print("Failed to join game")
+                return
+
+        if is_host:
+            start_response = json.loads(client_socket.recv(BUFFER_SIZE).decode('utf-8'))
+            if start_response.get("type") != Response.START_GAME.value:
+                print("Game start failed")
+                return
+ 
     running = True
     while running:
-        if restart:
-            renderer, game, turn, end, mark_success, restart = initialize_screen(screen)
-            
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            if not end and event.type == pygame.MOUSEBUTTONDOWN:
-                mark_success = game.set_mark(turn)
-            if end and event.type == pygame.KEYDOWN and event.key == pygame.K_r:
-                restart = True
-                
-        if end:
-            pass
-        else:
-            if mark_success:
-                if turn == Mark.CIRCLE:
-                    turn = Mark.CROSS
-                else:
-                    turn = Mark.CIRCLE
-                mark_success = False
-                end = game.check_game_end()
+ 
+            if event.type == pygame.MOUSEBUTTONDOWN and not game.winner:
+                x_mouse, y_mouse = pygame.mouse.get_pos()
+                for x in range(3):
+                    for y in range(3):
+                        if (game.board[x][y] is None and
+                            START_POS[0] + y * CELL_SIZE < x_mouse < START_POS[0] + (y + 1) * CELL_SIZE and
+                            START_POS[1] + x * CELL_SIZE < y_mouse < START_POS[1] + (x + 1) * CELL_SIZE):
+ 
+                            if game_id is None:
+                                game.board[x][y] = Mark.CROSS if game.turn == Mark.CROSS else Mark.CIRCLE
+                                game.check_game_end()
+                                if game.turn == Mark.CROSS:
+                                    game.turn = Mark.CIRCLE  
+                                else:
+                                    game.turn = Mark.CROSS
+                            
+                            else: 
+                                if game.turn == player_mark:
+                                    response = send_request(Request.MAKE_THE_MOVE, {
+                                        "game_id": game_id,
+                                        "client_id": player_id,
+                                        "row": x,
+                                        "col": y
+                                    })
+                                    if response and response.get("type") == Response.MOVE_MADE.value:
+                                        game.board = response["board"]
+                                        game.turn = Mark(response["turn"])
+                                    elif response and response.get("type") == Response.GAME_FINISHED_SUC.value:
+                                        game.board = response["board"]
+                                        game.winner = Mark(response["winner"])
+ 
+        if game_id is not None and not game.winner:
+            try:
+                data = client_socket.recv(BUFFER_SIZE, socket.MSG_DONTWAIT)
+                if data:
+                    response = json.loads(data.decode('utf-8'))
+                    if response["type"] == Response.MOVE_MADE.value:
+                        game.board = response["board"]
+                        game.turn = Mark(response["turn"])
+                    elif response["type"] == Response.GAME_FINISHED_SUC.value:
+                        game.board = response["board"]
+                        game.winner = Mark(response["winner"])
+                    elif response["type"] == Response.PLAYER_DISCONNECTED.value:
+                        print("Opponent disconnected... Waiting it to reconnect")
+                    elif response["type"] == Response.GAME_FINISHED_TECH.value:
+                        game.board = response["board"]
+                        game.winner = Mark(response["winner"])
+                        print("Opponent failed to connect")
+            except BlockingIOError:
+                pass
+ 
         renderer.render(game)
         pygame.display.flip()
-    
-    pygame.quit()
+ 
+    if game_id is not None:
+        client_socket.close()
 
 # Waiting screen 
-def show_waiting_screen():
-    """Shows a waiting screen with 'Waiting for player' message"""
+def show_waiting_screen(game_id):
     waiting = True
     clock = pygame.time.Clock()
     font = pygame.font.Font(None, 36)
-    
-    # Check if player was found
-    player_found = False
-    
+ 
     while waiting:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                return
+                waiting = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     waiting = False
-        
-        # Edit start_game() function to make it work with two players
-        if player_found:
-            start_game()
-            
+ 
+        try:
+            data = client_socket.recv(BUFFER_SIZE, socket.MSG_DONTWAIT)
+            if data:
+                response = json.loads(data.decode('utf-8'))
+                if response["type"] == Response.START_GAME.value:
+                    start_game(game_id, is_host=True)
+                    waiting = False
+        except BlockingIOError:
+            pass
+ 
         screen.fill(BACKGROUND_COLOR)
-        text = font.render("Waiting for player...", True, (0, 0, 0))
+        text = font.render("Waiting for opponent...", True, (0, 0, 0))
         text_rect = text.get_rect(center=(WIDTH/2, HEIGHT/2))
         screen.blit(text, text_rect)
-        
+ 
         pygame.display.flip()
         clock.tick(30)
         
 
-# Thank you DeepSeek for lobby generation!
 def lobby(page=0):
-    # Имитация данных (в реальном приложении получаем с сервера)
-    TOTAL_SESSIONS = 3
-    SESSIONS_PER_PAGE = 8
-    
-    current_page = page
-    total_pages = (TOTAL_SESSIONS + SESSIONS_PER_PAGE - 1) // SESSIONS_PER_PAGE
-    
+    if not connect_to_server():
+        return
+ 
+    response = send_request(Request.GET_GAMES, {
+        "page_num_l": page * 8,
+        "page_num_r": (page + 1) * 8 - 1
+    })
+ 
+    if not response or response.get("type") != Response.RETURN_GAMES.value:
+        print("Failed to get game list")
+        return
+ 
+    available_games = response["data"]
+    total_pages = (len(available_games) + 7) // 8
+ 
     lobby_menu = pygame_menu.Menu("Lobby", WIDTH, HEIGHT, theme=pygame_menu.themes.THEME_SOLARIZED)
-    
-    # Элементы управления
+ 
     controls_frame = lobby_menu.add.frame_h(width=WIDTH*0.8, height=50)
-    
-    # Информация о странице
+ 
     page_info_label = controls_frame.pack(
-        lobby_menu.add.label(f"Page {current_page+1}/{total_pages}", font_size=20),
+        lobby_menu.add.label(f"Page {page+1}/{total_pages}", font_size=20),
         align=pygame_menu.locals.ALIGN_CENTER
     )
-    
-    # Контейнер для динамического контента
+ 
     content_frame = lobby_menu.add.frame_v(
         width=WIDTH*0.8,
         height=HEIGHT*0.5,
         background_color=SERVER_LIST_COLOR
     )
-
-    # Рассчитываем диапазон сессий для текущей страницы
-    start_idx = current_page * SESSIONS_PER_PAGE
-    end_idx = min(start_idx + SESSIONS_PER_PAGE, TOTAL_SESSIONS)
-        
-    # Добавляем кнопки сессий
-    for i in range(start_idx, end_idx):
+ 
+    for game_id in available_games:
         content_frame.pack(
             lobby_menu.add.button(
-                f"Game {i+1}", 
-                start_game,
+                f"Game {game_id+1}", 
+                lambda g=game_id: start_game(g),
                 font_size=20
             ),
             align=pygame_menu.locals.ALIGN_CENTER
         )
-    
-    # Функция смены страницы
+ 
     def change_page(delta):
-        nonlocal current_page
-        new_page = current_page + delta
-        
+        nonlocal page
+        new_page = page + delta
         if 0 <= new_page < total_pages:
-            # Создаем новое меню с новой страницей
             lobby_menu.close()
             lobby(new_page)
-    
-    # Кнопка назад
+ 
     btn_prev = controls_frame.pack(
         lobby_menu.add.button(
             "<", 
@@ -309,8 +396,7 @@ def lobby(page=0):
         ),
         align=pygame_menu.locals.ALIGN_LEFT
     )
-    
-    # Кнопка вперед
+ 
     btn_next = controls_frame.pack(
         lobby_menu.add.button(
             ">", 
@@ -319,12 +405,11 @@ def lobby(page=0):
         ),
         align=pygame_menu.locals.ALIGN_RIGHT
     )
-    
-    # Кнопка обновления (теперь просто пересоздает текущую страницу)
-    lobby_menu.add.button("Create Game", show_waiting_screen, font_size=20)
-    lobby_menu.add.button("Refresh", lambda: lobby(current_page), font_size=20)
+ 
+    lobby_menu.add.button("Create Game", lambda: show_waiting_screen(-1), font_size=20)
+    lobby_menu.add.button("Refresh", lambda: lobby(page), font_size=20)
     lobby_menu.add.button("Back", pygame_menu.events.BACK, font_size=20)
-    
+ 
     lobby_menu.mainloop(screen)
     
       

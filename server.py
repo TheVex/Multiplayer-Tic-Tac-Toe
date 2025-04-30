@@ -6,6 +6,7 @@ import json
 import random
 
 
+IP = "127.0.0.1"
 PORT = 8080
 SERVER_BUFFER = 4096
 
@@ -233,7 +234,6 @@ class GameServer:
                             break
                 break
 
-
             except Exception as e:
                 log.log_error(f"Error handling client {client_addr}: {e}")
                 error_resp = {
@@ -243,9 +243,9 @@ class GameServer:
                 client_sock.send(json.dumps(error_resp).encode("utf-8"))
 
 
-def main():
+def start_server():
     server_sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-    server_addr = ("0.0.0.0", PORT)
+    server_addr = (IP, PORT)
     server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_sock.bind(server_addr)
     server_sock.listen(16)
@@ -254,12 +254,19 @@ def main():
     log.log_info(f"Server started on {server_addr[0]}:{server_addr[1]}")
     try:
         while True:
-            client_sock, client_addr = server_sock.accept()
-            thread = Thread(target=server.serve_connection, args=(client_sock, client_addr))
-            thread.daemon = True
-            thread.start()
+            try:
+                client_sock, client_addr = server_sock.accept()
+                thread = Thread(target=server.serve_connection, args=(client_sock, client_addr))
+                thread.daemon = True
+                thread.start()
+            except TimeoutError:
+                log.log_info("No clients requesting for connection.")
     except KeyboardInterrupt:
         log.log_info("Server shutdown requested by user.")
     finally:
         server_sock.close()
         log.log_info("Server socket closed.")
+
+
+if __name__ == "__main__":
+    start_server()
