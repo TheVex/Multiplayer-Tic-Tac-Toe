@@ -1,8 +1,7 @@
 import pygame
 import pygame_menu
-from enum import Enum
+from protocols.enums import Mark, WinLine
 from pprint import pprint
-
 import pygame_menu.themes
 
 # Board position customization
@@ -14,7 +13,6 @@ LINE_WIDTH = 10
 WIN_LINE_WIDTH = 15
 # Position from which board starts drawing
 START_POS =  (WIDTH // 2 - int(CELL_SIZE * 1.5), HEIGHT // 2 - int(CELL_SIZE * 1.5))
-
 
 # Color customization
 BACKGROUND_COLOR = 'lightgray'
@@ -31,24 +29,6 @@ TEXT_OFFSET = 30
 pygame.init()
 pygame.display.set_caption("Tic-Tac-Toe")   
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-
-
-# Specifies type of mark (and who won the game)
-class Mark(Enum):
-    NOT_FINISHED = 4
-    CROSS = 1
-    CIRCLE = 2
-    DRAW = 3
-    
-# Specifies type of line showing the winner
-class WinLine(Enum):
-    NOT_FINISHED = 6
-    HORIZONTAL = 1
-    VERTICAL = 2
-    LEFT_DIAGONAL = 3
-    RIGHT_DIAGONAL = 4
-    DRAW = 5
-
 
 class Renderer:
     def __init__(self, screen):
