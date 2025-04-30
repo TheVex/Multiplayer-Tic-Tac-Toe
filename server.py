@@ -109,7 +109,9 @@ class GameServer:
         log.log_info(f"New client connected: {client_addr}")
         while True:
             try:
-                data = json.loads(client_sock.recv(SERVER_BUFFER).decode('utf-8'))
+                message = client_sock.recv(SERVER_BUFFER)
+                log.log_info(f"Message was received from client: {client_addr}")
+                data = json.loads(message.decode('utf-8'))
                 response = dict()
 
                 if int(data['type']) == Request.GET_GAMES.value:

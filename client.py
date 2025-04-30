@@ -52,6 +52,9 @@ def send_request(request_type, data=None):
         request = {"type": request_type.value}
         if data:
             request.update(data)
+        print("Doing")
+        for key, value in request.items():
+            print(f"Key: {key}, Value: {value}")
         client_socket.send(json.dumps(request).encode('utf-8'))
         response = json.loads(client_socket.recv(BUFFER_SIZE).decode('utf-8'))
         return response
@@ -210,7 +213,7 @@ def initialize_screen(screen):
     game = Game()
     renderer.render(game)
     return renderer, game, Mark.CROSS, False, False, False
-    
+
     
 def start_game(game_id=None, is_host=False):
     global FONT, screen
@@ -226,6 +229,7 @@ def start_game(game_id=None, is_host=False):
                 game_id = response["data"][0]
                 player_id = response["data"][1]
                 player_mark = Mark.CROSS
+                show_waiting_screen(game_id)
             else:
                 print("Failed to create game")
                 return
@@ -330,6 +334,8 @@ def show_waiting_screen(game_id):
                     waiting = False
         except BlockingIOError:
             pass
+        except TimeoutError:
+            print("Waiting for game to start...")
  
         screen.fill(BACKGROUND_COLOR)
         text = font.render("Waiting for opponent...", True, (0, 0, 0))
@@ -406,7 +412,7 @@ def lobby(page=0):
         align=pygame_menu.locals.ALIGN_RIGHT
     )
  
-    lobby_menu.add.button("Create Game", lambda: show_waiting_screen(-1), font_size=20)
+    lobby_menu.add.button("Create Game", lambda: start_game(game_id=-1, is_host=True), font_size=20)
     lobby_menu.add.button("Refresh", lambda: lobby(page), font_size=20)
     lobby_menu.add.button("Back", pygame_menu.events.BACK, font_size=20)
  
