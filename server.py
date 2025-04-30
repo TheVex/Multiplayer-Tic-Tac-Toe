@@ -8,7 +8,7 @@ import random
 
 IP = "127.0.0.1"
 PORT = 8080
-SERVER_BUFFER = 4096
+SERVER_BUFFER = 8192
 
 
 class Client:
@@ -98,7 +98,7 @@ class GameServer:
             if game.clients[other_index]:
                 try:
                     game.clients[other_index].host_sock.send(json.dumps({
-                        "type": Response.GAME_FINISHED_TECH,
+                        "type": Response.GAME_FINISHED_TECH.value,
                         "winner": winner,
                         "board": game.board,
                     }).encode("utf-8"))
@@ -112,17 +112,17 @@ class GameServer:
                 data = json.loads(client_sock.recv(SERVER_BUFFER).decode('utf-8'))
                 response = dict()
 
-                if int(data['type']) == Request.GET_GAMES:
+                if int(data['type']) == Request.GET_GAMES.value:
                     page_num_l = int(data["page_num_l"])
                     page_num_r = int(data["page_num_r"])
-                    if page_num_l < 0 or page_num_l >= self.games_count or page_num_r < 0:
+                    if page_num_l < 0 or page_num_l > self.games_count or page_num_r < 0:
                         raise IndexError("Invalid page range: left or right index out of bounds")
-                    response["type"] = Response.RETURN_GAMES
-                    response["data"] = [i for i in range(page_num_l, page_num_r + 1)]
+                    response["type"] = Response.RETURN_GAMES.value
+                    response["data"] = [i for i in range(page_num_l, min(page_num_r, self.games_count))]
                     json_response = json.dumps(response).encode("utf-8")
                     client_sock.send(json_response)
                     
-                elif int(data['type']) == Request.CONNECT_TO_GAME:
+                elif int(data['type']) == Request.CONNECT_TO_GAME.value:
                     game_id = data['game_id']
                     if game_id < 0 or game_id >= self.games_count:
                         raise IndexError(f"Game ID {game_id} does not exist")
@@ -133,13 +133,13 @@ class GameServer:
                         raise RuntimeError(f"Failed to connect client to game {game_id}")
                     log.log_info(f"Client {client_addr} connected to game {game_id}")
                     creator = self.games[game_id].clients[0].host_sock
-                    creator_response = {"type": Response.START_GAME}
+                    creator_response = {"type": Response.START_GAME.value}
                     creator.send(json.dumps(creator_response).encode("utf-8"))
-                    response["type"] = Response.CONNECT_TO_GAME
+                    response["type"] = Response.CONNECT_TO_GAME.value
                     response["data"] = res
                     client_sock.send(json.dumps(response).encode("utf-8"))
 
-                elif int(data["type"]) == Request.RECONNECT_CLIENT:
+                elif int(data["type"]) == Request.RECONNECT_CLIENT.value:
                     host_id = data["host_id"]
                     for game in self.games:
                         for i, client in enumerate(game.clients):
@@ -151,7 +151,7 @@ class GameServer:
                                 game.disconnected[i] = False
                                 if game.disconnect_timer[i]:
                                     game.disconnect_timer[i].cancel()
-                                response["type"] = Response.RECONNECTED
+                                response["type"] = Response.RECONNECTED.value
                                 response["game_id"] = game.game_id
                                 response["board"] = game.board
                                 response["your_mark"] = Mark.CROSS if i == 0 else Mark.CIRCLE
@@ -160,14 +160,14 @@ class GameServer:
                                 log.log_info(f"Client {host_id} reconnected to game {game.game_id}")
                                 break
 
-                elif int(data["type"]) == Request.CREATE_THE_GAME:
+                elif int(data["type"]) == Request.CREATE_THE_GAME.value:
                     game = self.create_game()
                     client_id = game.connect_client(client_sock, client_addr)
-                    response["type"] = Response.CREATE_GAME
+                    response["type"] = Response.CREATE_GAME.value
                     response["data"] = [game.game_id, client_id]
                     client_sock.send(json.dumps(response).encode("utf-8"))
 
-                elif int(data["type"]) == Request.MAKE_THE_MOVE:
+                elif int(data["type"]) == Request.MAKE_THE_MOVE.value:
                     game_id = data['game_id']
                     client_id = data['client_id']
                     row = data['row']
@@ -195,7 +195,7 @@ class GameServer:
                         log.log_info(f"Game {game_id} finished. Winner: {winner.name}")
                         for client in game.clients:
                             win_resp = {
-                                "type": Response.GAME_FINISHED_SUC,
+                                "type": Response.GAME_FINISHED_SUC.value,
                                 "winner": winner,
                                 "board": game.board
                             }
@@ -204,7 +204,7 @@ class GameServer:
                     game.change_turn()
                     for client in game.clients:
                         move_resp = {
-                            "type": Response.MOVE_MADE,
+                            "type": Response.MOVE_MADE.value,
                             "board": game.board,
                             "turn": game.turn
                         }
@@ -225,7 +225,7 @@ class GameServer:
                             if game.clients[other_index]:
                                 try:
                                     game.clients[other_index].host_sock.send(json.dumps({
-                                        "type": Response.PLAYER_DISCONNECTED,
+                                        "type": Response.PLAYER_DISCONNECTED.value,
                                         "game_id": game.game_id
                                     }).encode("utf-8"))
                                     log.log_info(f"Notified player {game.clients[other_index].host_id} about opponent disconnection.")
@@ -237,7 +237,7 @@ class GameServer:
             except Exception as e:
                 log.log_error(f"Error handling client {client_addr}: {e}")
                 error_resp = {
-                    "type": Response.ERROR,
+                    "type": Response.ERROR.value,
                     "data": str(e)
                 }
                 client_sock.send(json.dumps(error_resp).encode("utf-8"))

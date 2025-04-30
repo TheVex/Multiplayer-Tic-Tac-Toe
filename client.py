@@ -28,8 +28,8 @@ FONT = None
 FONT_SIZE = 64
 TEXT_OFFSET = 30
 
-SERVER_ADDRESS = ("localhost", 8080)
-BUFFER_SIZE = 4096
+SERVER_ADDRESS = ("127.0.0.1", 8080)
+BUFFER_SIZE = 8192
 
 pygame.init()
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -283,7 +283,7 @@ def start_game(game_id=None, is_host=False):
  
         if game_id is not None and not game.winner:
             try:
-                data = client_socket.recv(BUFFER_SIZE, socket.MSG_DONTWAIT)
+                data = client_socket.recv(BUFFER_SIZE)
                 if data:
                     response = json.loads(data.decode('utf-8'))
                     if response["type"] == Response.MOVE_MADE.value:
@@ -322,7 +322,7 @@ def show_waiting_screen(game_id):
                     waiting = False
  
         try:
-            data = client_socket.recv(BUFFER_SIZE, socket.MSG_DONTWAIT)
+            data = client_socket.recv(BUFFER_SIZE)
             if data:
                 response = json.loads(data.decode('utf-8'))
                 if response["type"] == Response.START_GAME.value:

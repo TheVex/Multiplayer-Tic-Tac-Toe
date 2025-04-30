@@ -35,3 +35,4 @@ class Response(Enum):
     MOVE_MADE = 7
     ERROR = 8
     PLAYER_DISCONNECTED = 9
+    RECONNECTED = 10
