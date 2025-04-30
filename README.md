@@ -19,7 +19,7 @@ git clone https://github.com/TheVex/Multiplayer-Tic-Tac-Toe.git
 pip install -r requirements.txt
 ```
 
-3. Launching the app
+3. Launching the app.
 The application consists of a server and clients. To work, you must:
 1. Start the server (in the first terminal):
 ```bash
@@ -35,6 +35,6 @@ python client/client.py
 python client/client.py
 ```
 ## How to start the game
-1. In the first client, click `Play->Create game`
-2. A list of available games should appear in the second client (otherwise click refresh)
+1. In the first client, click `Play`. Empty lobby will be opened, where `Create game` button should be clicked.
+2. Open lobby in second client. A list of available games should appear in the second client (otherwise click refresh)
 3. Select `Game 1` in the second client to connect to the game.
