@@ -1,6 +1,7 @@
 import pygame
 import pygame_menu
 from protocols.enums import Mark, WinLine, Response, Request
+from log_meth import log
 from pprint import pprint
 import pygame_menu.themes
 import socket
@@ -43,13 +44,11 @@ def send_request(request_type, data=None):
         request = {"type": request_type.value}
         if data:
             request.update(data)
-        for key, value in request.items():
-            print(f"Key: {key}, Value: {value}")
         client_socket.send(json.dumps(request).encode('utf-8'))
         response = json.loads(client_socket.recv(BUFFER_SIZE).decode('utf-8'))
         return response
     except Exception as e:
-        print(f"Network error: {e}")
+        log.log_error(f"Network error: {e}")
         return None
 
 
@@ -158,10 +157,10 @@ class Game:
     # Checks that mouse cursor is in board and places mark
     def set_local_mark(self, mark):
         if self.is_finished:
-            print("Game already finished.")
+            log.log_error("Game already finished.")
             return False
         if self.current_turn != self.my_mark:
-            print("Not your turn.")
+            log.log_warn("Not your turn.")
             return False
         x_mouse, y_mouse = pygame.mouse.get_pos()
         for x in range(3):
@@ -170,12 +169,11 @@ class Game:
                     START_POS[0] + y * CELL_SIZE < x_mouse < START_POS[0] + (y + 1) * CELL_SIZE and
                     START_POS[1] + x * CELL_SIZE < y_mouse < START_POS[1] + (x + 1) * CELL_SIZE):
                     return x, y
-        print("Invalid cell.")
+        log.log_warn("Invalid cell.")
         return False
         
     # Hardcoded conditions check
     def check_game_end(self):
-        pprint(self.board)
         
         for i in range(3):
             if self.board[i][0] and self.board[i][0] == self.board[i][1] == self.board[i][2]:
@@ -230,7 +228,7 @@ def start_game(game_id=None, is_host=False):
                 if show_waiting_screen(game_id):
                     return
             else:
-                print("Failed to create game")
+                log.log_error("Failed to create game.")
                 return
         else:
             response = send_request(Request.CONNECT_TO_GAME, {"game_id": game_id})
@@ -238,7 +236,7 @@ def start_game(game_id=None, is_host=False):
                 player_id = response["data"]
                 player_mark = Mark.CIRCLE
             else:
-                print("Failed to join game")
+                log.log_error("Failed to join game.")
                 return
             
     FONT = pygame.font.Font(None, FONT_SIZE)
@@ -288,15 +286,15 @@ def start_game(game_id=None, is_host=False):
                         game.winner = Mark(response["winner"])
                         game.check_game_end()
                     elif response["type"] == Response.PLAYER_DISCONNECTED.value:
-                        print("Opponent disconnected... Waiting it to reconnect")
+                        log.log_info("Opponent disconnected... Waiting it to reconnect")
                     elif response["type"] == Response.GAME_FINISHED_TECH.value:
                         game.board = convert_board(response["board"])
                         game.winner = Mark(game.turn)
-                        print("Opponent failed to connect.")
+                        log.log_info("Opponent failed to connect.")
             except BlockingIOError:
                 pass
             except TimeoutError:
-                print("Waiting for another host to make a move.")
+                log.log_info("Waiting for another host to make a move.")
  
         renderer.render(game)
         pygame.display.flip()
@@ -341,7 +339,7 @@ def show_waiting_screen(game_id):
             interrupted = True
             waiting = False
         except TimeoutError:
-            print("Waiting for game to start...")
+            log.log_info("Waiting for game to start...")
  
         screen.fill(BACKGROUND_COLOR)
         text = font.render("Waiting for opponent...", True, (0, 0, 0))
@@ -354,14 +352,16 @@ def show_waiting_screen(game_id):
     return interrupted
         
 
-def lobby(page=0): 
+def lobby(page=0):
+    client_socket.setblocking(1)
+    log.log_info("Lobby was opened.")
     response = send_request(Request.GET_GAMES, {
         "page_num_l": page * 8,
         "page_num_r": (page + 1) * 8 - 1
     })
  
     if not response or response.get("type") != Response.RETURN_GAMES.value:
-        print("Failed to get game list")
+        log.log_warn("Failed to get game list")
         return
  
     available_games = response["data"]
@@ -419,7 +419,7 @@ def lobby(page=0):
  
     lobby_menu.add.button("Create Game", lambda: start_game(game_id=-1, is_host=True), font_size=20)
     lobby_menu.add.button("Refresh", lambda: lobby(page), font_size=20)
-    lobby_menu.add.button("Back", pygame_menu.events.BACK, font_size=20)
+    lobby_menu.add.button("Back", menu, font_size=20)
  
     lobby_menu.mainloop(screen)
     
@@ -434,5 +434,5 @@ if __name__ == '__main__':
     try:
         client_socket.connect(SERVER_ADDRESS)
     except Exception as e:
-        print(f"Failed to connect to server: {e}")
+        log.log_error(f"Failed to connect to server: {e}")
     menu()

@@ -226,7 +226,6 @@ class GameServer:
                             }
                             client.host_sock.send(json.dumps(win_resp).encode("utf-8"))
                         self.remove_game(game_id)
-                        break
                     if winner == Mark.DRAW:
                         game.finished = True
                         log.log_info(f"Game {game_id} finished. No winner")
@@ -238,7 +237,6 @@ class GameServer:
                             }
                             client.host_sock.send(json.dumps(win_resp).encode("utf-8"))
                         self.remove_game(game_id)
-                        break
                     game.change_turn()
                     for client in game.clients:
                         move_resp = {
@@ -270,7 +268,6 @@ class GameServer:
                                 except Exception as e:
                                     log.log_warn(f"Failed to notify player {game.clients[other_index].host_id} about opponent disconnection: {e}")
                             break
-                break
 
             except Exception as e:
                 log.log_error(f"Error handling client {client_addr}: {e}")
