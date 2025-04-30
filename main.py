@@ -30,6 +30,8 @@ pygame.init()
 pygame.display.set_caption("Tic-Tac-Toe")   
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
+
+# Draws game on the screen
 class Renderer:
     def __init__(self, screen):
         # Fill the screen with background color
@@ -116,7 +118,8 @@ class Renderer:
         if game.winline != WinLine.NOT_FINISHED:
             self.draw_winner(game)
 
-    
+
+# Game Logic class
 class Game:
     def __init__(self):
         self.board = [[None for _ in range(3)] for i in range(3)]
@@ -162,7 +165,8 @@ class Game:
         self.winline = winline
         return True
      
-                
+     
+# Preparations for a new game           
 def initialize_screen(screen):
     renderer = Renderer(screen)
     # Create game
@@ -171,7 +175,7 @@ def initialize_screen(screen):
     return renderer, game, Mark.CROSS, False, False, False
     
     
-# I think should be partially moved to the server
+# Start of the match
 def start_game():
     global FONT, screen
     # Create game window
@@ -216,6 +220,7 @@ def start_game():
     
     pygame.quit()
 
+
 # Waiting screen 
 def show_waiting_screen():
     """Shows a waiting screen with 'Waiting for player' message"""
@@ -248,9 +253,8 @@ def show_waiting_screen():
         clock.tick(30)
         
 
-# Thank you DeepSeek for lobby generation!
+# Lobby interface function
 def lobby(page=0):
-    # Имитация данных (в реальном приложении получаем с сервера)
     TOTAL_SESSIONS = 3
     SESSIONS_PER_PAGE = 8
     
@@ -259,27 +263,22 @@ def lobby(page=0):
     
     lobby_menu = pygame_menu.Menu("Lobby", WIDTH, HEIGHT, theme=pygame_menu.themes.THEME_SOLARIZED)
     
-    # Элементы управления
     controls_frame = lobby_menu.add.frame_h(width=WIDTH*0.8, height=50)
     
-    # Информация о странице
     page_info_label = controls_frame.pack(
         lobby_menu.add.label(f"Page {current_page+1}/{total_pages}", font_size=20),
         align=pygame_menu.locals.ALIGN_CENTER
     )
     
-    # Контейнер для динамического контента
     content_frame = lobby_menu.add.frame_v(
         width=WIDTH*0.8,
         height=HEIGHT*0.5,
         background_color=SERVER_LIST_COLOR
     )
 
-    # Рассчитываем диапазон сессий для текущей страницы
     start_idx = current_page * SESSIONS_PER_PAGE
     end_idx = min(start_idx + SESSIONS_PER_PAGE, TOTAL_SESSIONS)
         
-    # Добавляем кнопки сессий
     for i in range(start_idx, end_idx):
         content_frame.pack(
             lobby_menu.add.button(
@@ -290,17 +289,14 @@ def lobby(page=0):
             align=pygame_menu.locals.ALIGN_CENTER
         )
     
-    # Функция смены страницы
     def change_page(delta):
         nonlocal current_page
         new_page = current_page + delta
         
         if 0 <= new_page < total_pages:
-            # Создаем новое меню с новой страницей
             lobby_menu.close()
             lobby(new_page)
     
-    # Кнопка назад
     btn_prev = controls_frame.pack(
         lobby_menu.add.button(
             "<", 
@@ -310,7 +306,6 @@ def lobby(page=0):
         align=pygame_menu.locals.ALIGN_LEFT
     )
     
-    # Кнопка вперед
     btn_next = controls_frame.pack(
         lobby_menu.add.button(
             ">", 
@@ -320,19 +315,20 @@ def lobby(page=0):
         align=pygame_menu.locals.ALIGN_RIGHT
     )
     
-    # Кнопка обновления (теперь просто пересоздает текущую страницу)
     lobby_menu.add.button("Create Game", show_waiting_screen, font_size=20)
     lobby_menu.add.button("Refresh", lambda: lobby(current_page), font_size=20)
     lobby_menu.add.button("Back", pygame_menu.events.BACK, font_size=20)
     
     lobby_menu.mainloop(screen)
     
-      
+
+# Menu interface function 
 def menu():
     menu = pygame_menu.Menu("Tic-Tac-Toe", WIDTH, HEIGHT, theme=pygame_menu.themes.THEME_SOLARIZED)
     menu.add.button('Play', lobby)
     menu.add.button('Quit', pygame_menu.events.EXIT)
     menu.mainloop(screen)
+    
     
 if __name__ == '__main__':
     menu()
