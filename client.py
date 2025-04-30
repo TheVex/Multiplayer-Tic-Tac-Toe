@@ -34,7 +34,6 @@ BUFFER_SIZE = 8192
 pygame.init()
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client_socket.settimeout(5)
-client_socket.setblocking(0)
 pygame.display.set_caption("Tic-Tac-Toe")   
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
@@ -44,7 +43,6 @@ def send_request(request_type, data=None):
         request = {"type": request_type.value}
         if data:
             request.update(data)
-        print("Doing")
         for key, value in request.items():
             print(f"Key: {key}, Value: {value}")
         client_socket.send(json.dumps(request).encode('utf-8'))
@@ -229,7 +227,8 @@ def start_game(game_id=None, is_host=False):
                 game_id = response["data"][0]
                 player_id = response["data"][1]
                 player_mark = Mark.CROSS
-                show_waiting_screen(game_id)
+                if show_waiting_screen(game_id):
+                    return
             else:
                 print("Failed to create game")
                 return
@@ -247,7 +246,7 @@ def start_game(game_id=None, is_host=False):
     game = Game(player_mark)
     renderer.render(game)
 
-
+    client_socket.setblocking(0)
     running = True
     while running:
         for event in pygame.event.get():
@@ -301,9 +300,8 @@ def start_game(game_id=None, is_host=False):
  
         renderer.render(game)
         pygame.display.flip()
- 
-    if game_id is not None:
-        client_socket.close()
+    
+    client_socket.setblocking(1)
 
 # Waiting screen 
 def show_waiting_screen(game_id):
@@ -317,9 +315,14 @@ def show_waiting_screen(game_id):
     screen.blit(text, text_rect)
     pygame.display.flip()
 
+    interrupted = False
+
+    client_socket.setblocking(0)
     while waiting:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                send_request(Request.REMOVE_THE_GAME, {"game_id": game_id})
+                interrupted = True
                 waiting = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -333,6 +336,10 @@ def show_waiting_screen(game_id):
                     waiting = False
         except BlockingIOError:
             pass
+        except KeyboardInterrupt:
+            send_request(Request.REMOVE_THE_GAME, {"game_id": game_id})
+            interrupted = True
+            waiting = False
         except TimeoutError:
             print("Waiting for game to start...")
  
@@ -343,6 +350,8 @@ def show_waiting_screen(game_id):
  
         pygame.display.flip()
         clock.tick(30)
+    client_socket.setblocking(1)
+    return interrupted
         
 
 def lobby(page=0): 
@@ -356,7 +365,7 @@ def lobby(page=0):
         return
  
     available_games = response["data"]
-    total_pages = (len(available_games) + 7) // 8
+    total_pages = max((len(available_games) + 7) // 8, 1)
  
     lobby_menu = pygame_menu.Menu("Lobby", WIDTH, HEIGHT, theme=pygame_menu.themes.THEME_SOLARIZED)
  

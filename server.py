@@ -44,6 +44,7 @@ class Game:
         self.turn = Mark.CROSS
         self.board = [[None for _ in range(3)] for _ in range(3)]
         self.disconnect_timer = [None, None]
+        self.disconnected = [False, False]
 
     def convert_board(self):
         conv = [[None for _ in range(3)] for _ in range(3)]
@@ -113,6 +114,15 @@ class GameServer:
                 except Exception as e:
                     log.log_warn(f"Failed to notify player {winner} after timeout: {e}")
 
+
+    def remove_game(self, game_id):
+        for i in range(len(self.games)):
+            if self.games[i].game_id == game_id:
+                del self.games[i]
+                self.games_count -= 1
+                break
+        log.log_info(f"Removed the game: {game_id}.")
+
     def serve_connection(self, client_sock, client_addr):
         log.log_info(f"New client connected: {client_addr}")
         while True:
@@ -128,9 +138,14 @@ class GameServer:
                     if page_num_l < 0 or page_num_l > self.games_count or page_num_r < 0:
                         raise IndexError("Invalid page range: left or right index out of bounds")
                     response["type"] = Response.RETURN_GAMES.value
-                    response["data"] = [i for i in range(page_num_l, min(page_num_r, self.games_count))]
+                    response["data"] = [self.games[i].game_id for i in range(page_num_l, min(page_num_r, self.games_count))]
                     json_response = json.dumps(response).encode("utf-8")
                     client_sock.send(json_response)
+
+                elif int(data['type']) == Request.REMOVE_THE_GAME.value:
+                    game_id = data['game_id']
+                    self.remove_game(game_id)
+                    log.log_info(f"Removed the game: {game_id}.")
                     
                 elif int(data['type']) == Request.CONNECT_TO_GAME.value:
                     game_id = data['game_id']
@@ -210,6 +225,7 @@ class GameServer:
                                 "board": game.convert_board()
                             }
                             client.host_sock.send(json.dumps(win_resp).encode("utf-8"))
+                        self.remove_game(game_id)
                         break
                     if winner == Mark.DRAW:
                         game.finished = True
@@ -221,6 +237,7 @@ class GameServer:
                                 "board": game.convert_board()
                             }
                             client.host_sock.send(json.dumps(win_resp).encode("utf-8"))
+                        self.remove_game(game_id)
                         break
                     game.change_turn()
                     for client in game.clients:
@@ -257,7 +274,7 @@ class GameServer:
 
             except Exception as e:
                 log.log_error(f"Error handling client {client_addr}: {e}")
-                traceback.print_exc()
+                #traceback.print_exc()
                 error_resp = {
                     "type": Response.ERROR.value,
                     "data": str(e)
