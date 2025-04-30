@@ -4,6 +4,7 @@ from protocols.enums import Request, Response, Mark
 from log_meth import log
 import json
 import random
+import traceback
 
 
 IP = "127.0.0.1"
@@ -43,6 +44,14 @@ class Game:
         self.turn = Mark.CROSS
         self.board = [[None for _ in range(3)] for _ in range(3)]
         self.disconnect_timer = [None, None]
+
+    def convert_board(self):
+        conv = [[None for _ in range(3)] for _ in range(3)]
+        for i in range(3):
+            for j in range(3):
+                if self.board[i][j] is not None:
+                    conv[i][j] = self.board[i][j].value
+        return conv
 
     def connect_client(self, host_sock, host_addr):
         res = None
@@ -93,14 +102,13 @@ class GameServer:
             other_index = 1 - index
             winner = None
             if game.clients[other_index]:
-                 winner = game.clients[other_index].host_id
+                winner = game.clients[other_index].host_id
             log.log_info(f"Client {game.clients[index].host_id} failed to reconnect. Game {game.game_id} ended. Winner: {winner}")
             if game.clients[other_index]:
                 try:
                     game.clients[other_index].host_sock.send(json.dumps({
                         "type": Response.GAME_FINISHED_TECH.value,
-                        "winner": winner,
-                        "board": game.board,
+                        "board": game.convert_board(),
                     }).encode("utf-8"))
                 except Exception as e:
                     log.log_warn(f"Failed to notify player {winner} after timeout: {e}")
@@ -155,9 +163,9 @@ class GameServer:
                                     game.disconnect_timer[i].cancel()
                                 response["type"] = Response.RECONNECTED.value
                                 response["game_id"] = game.game_id
-                                response["board"] = game.board
-                                response["your_mark"] = Mark.CROSS if i == 0 else Mark.CIRCLE
-                                response["turn"] = game.turn
+                                response["board"] = game.convert_board()
+                                response["your_mark"] = Mark.CROSS.value if i == 0 else Mark.CIRCLE.value
+                                response["turn"] = game.turn.value
                                 client_sock.send(json.dumps(response).encode("utf-8"))
                                 log.log_info(f"Client {host_id} reconnected to game {game.game_id}")
                                 break
@@ -192,14 +200,25 @@ class GameServer:
                     game.board[row][col] = player_mark
                     log.log_info(f"Player {client_id} made move at ({row}, {col}) in game {game_id}")
                     winner = game.check_winner(game.board)
-                    if winner:
+                    if winner == Mark.CIRCLE or winner == Mark.CROSS:
                         game.finished = True
                         log.log_info(f"Game {game_id} finished. Winner: {winner.name}")
                         for client in game.clients:
                             win_resp = {
                                 "type": Response.GAME_FINISHED_SUC.value,
-                                "winner": winner,
-                                "board": game.board
+                                "winner": winner.value,
+                                "board": game.convert_board()
+                            }
+                            client.host_sock.send(json.dumps(win_resp).encode("utf-8"))
+                        break
+                    if winner == Mark.DRAW:
+                        game.finished = True
+                        log.log_info(f"Game {game_id} finished. No winner")
+                        for client in game.clients:
+                            win_resp = {
+                                "type": Response.GAME_FINISHED_SUC.value,
+                                "winner": winner.value,
+                                "board": game.convert_board()
                             }
                             client.host_sock.send(json.dumps(win_resp).encode("utf-8"))
                         break
@@ -207,8 +226,8 @@ class GameServer:
                     for client in game.clients:
                         move_resp = {
                             "type": Response.MOVE_MADE.value,
-                            "board": game.board,
-                            "turn": game.turn
+                            "board": game.convert_board(),
+                            "turn": game.turn.value
                         }
                         client.host_sock.send(json.dumps(move_resp).encode("utf-8"))
 
@@ -238,6 +257,7 @@ class GameServer:
 
             except Exception as e:
                 log.log_error(f"Error handling client {client_addr}: {e}")
+                traceback.print_exc()
                 error_resp = {
                     "type": Response.ERROR.value,
                     "data": str(e)

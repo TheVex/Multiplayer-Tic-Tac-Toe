@@ -34,18 +34,10 @@ BUFFER_SIZE = 8192
 pygame.init()
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client_socket.settimeout(5)
+client_socket.setblocking(0)
 pygame.display.set_caption("Tic-Tac-Toe")   
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
-
-def connect_to_server():
-    try:
-        client_socket.connect(SERVER_ADDRESS)
-        return True
-    except Exception as e:
-        print(f"Failed to connect to server: {e}")
-        return False
- 
 
 def send_request(request_type, data=None):
     try:
@@ -151,13 +143,14 @@ class Renderer:
 
     
 class Game:
-    def __init__(self):
+    def __init__(self, player_mark):
         self.board = [[None for _ in range(3)] for _ in range(3)]
-        self.my_mark = None  
+        self.my_mark = player_mark  
         self.current_turn = None 
         self.is_finished = False
         self.winner = Mark.NOT_FINISHED
         self.winline = WinLine.NOT_FINISHED
+        self.turn = Mark.CROSS
 
     def update_from_server(self, board, current_turn, is_finished):
         self.board = board
@@ -216,6 +209,15 @@ def initialize_screen(screen):
     renderer.render(game)
     return renderer, game, Mark.CROSS, False, False, False
 
+
+def convert_board(board):
+    conv = [[None for _ in range(3)] for _ in range(3)]
+    for i in range(3):
+        for j in range(3):
+            if board[i][j] is not None:
+                conv[i][j] = Mark(board[i][j])
+    return conv
+
     
 def start_game(game_id=None, is_host=False):
     global FONT, screen
@@ -242,7 +244,9 @@ def start_game(game_id=None, is_host=False):
             
     FONT = pygame.font.Font(None, FONT_SIZE)
     renderer = Renderer(screen)
-    game = Game()
+    game = Game(player_mark)
+    renderer.render(game)
+
 
     running = True
     while running:
@@ -250,56 +254,49 @@ def start_game(game_id=None, is_host=False):
             if event.type == pygame.QUIT:
                 running = False
  
-            if event.type == pygame.MOUSEBUTTONDOWN and not game.winner:
+            if event.type == pygame.MOUSEBUTTONDOWN and game.winner == Mark.NOT_FINISHED:
                 x_mouse, y_mouse = pygame.mouse.get_pos()
                 for x in range(3):
                     for y in range(3):
                         if (game.board[x][y] is None and
                             START_POS[0] + y * CELL_SIZE < x_mouse < START_POS[0] + (y + 1) * CELL_SIZE and
                             START_POS[1] + x * CELL_SIZE < y_mouse < START_POS[1] + (x + 1) * CELL_SIZE):
+
+                            if game.turn == player_mark:
+                                response = send_request(Request.MAKE_THE_MOVE, {
+                                    "game_id": game_id,
+                                    "client_id": player_id,
+                                    "row": x,
+                                    "col": y
+                                })
+                                if response and response.get("type") == Response.MOVE_MADE.value:
+                                    game.board = convert_board(response["board"])
+                                    game.turn = Mark(response["turn"])
+                                elif response and response.get("type") == Response.GAME_FINISHED_SUC.value:
+                                    game.board = convert_board(response["board"])
+                                    game.winner = Mark(response["winner"])
  
-                            if game_id is None:
-                                game.board[x][y] = Mark.CROSS if game.turn == Mark.CROSS else Mark.CIRCLE
-                                game.check_game_end()
-                                if game.turn == Mark.CROSS:
-                                    game.turn = Mark.CIRCLE  
-                                else:
-                                    game.turn = Mark.CROSS
-                            
-                            else: 
-                                if game.turn == player_mark:
-                                    response = send_request(Request.MAKE_THE_MOVE, {
-                                        "game_id": game_id,
-                                        "client_id": player_id,
-                                        "row": x,
-                                        "col": y
-                                    })
-                                    if response and response.get("type") == Response.MOVE_MADE.value:
-                                        game.board = response["board"]
-                                        game.turn = Mark(response["turn"])
-                                    elif response and response.get("type") == Response.GAME_FINISHED_SUC.value:
-                                        game.board = response["board"]
-                                        game.winner = Mark(response["winner"])
- 
-        if game_id is not None and not game.winner:
+        if game_id is not None and game.winner == Mark.NOT_FINISHED:
             try:
                 data = client_socket.recv(BUFFER_SIZE)
                 if data:
                     response = json.loads(data.decode('utf-8'))
                     if response["type"] == Response.MOVE_MADE.value:
-                        game.board = response["board"]
+                        game.board = convert_board(response["board"])
                         game.turn = Mark(response["turn"])
                     elif response["type"] == Response.GAME_FINISHED_SUC.value:
-                        game.board = response["board"]
+                        game.board = convert_board(response["board"])
                         game.winner = Mark(response["winner"])
                     elif response["type"] == Response.PLAYER_DISCONNECTED.value:
                         print("Opponent disconnected... Waiting it to reconnect")
                     elif response["type"] == Response.GAME_FINISHED_TECH.value:
-                        game.board = response["board"]
-                        game.winner = Mark(response["winner"])
-                        print("Opponent failed to connect")
+                        game.board = convert_board(response["board"])
+                        game.winner = Mark(game.turn)
+                        print("Opponent failed to connect.")
             except BlockingIOError:
                 pass
+            except TimeoutError:
+                print("Waiting for another host to make a move.")
  
         renderer.render(game)
         pygame.display.flip()
@@ -347,10 +344,7 @@ def show_waiting_screen(game_id):
         clock.tick(30)
         
 
-def lobby(page=0):
-    if not connect_to_server():
-        return
- 
+def lobby(page=0): 
     response = send_request(Request.GET_GAMES, {
         "page_num_l": page * 8,
         "page_num_r": (page + 1) * 8 - 1
@@ -427,4 +421,8 @@ def menu():
     menu.mainloop(screen)
     
 if __name__ == '__main__':
+    try:
+        client_socket.connect(SERVER_ADDRESS)
+    except Exception as e:
+        print(f"Failed to connect to server: {e}")
     menu()
